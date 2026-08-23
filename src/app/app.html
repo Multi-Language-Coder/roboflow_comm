@@ -1,0 +1,196 @@
+<div class="page">
+  <header class="masthead">
+    <h1><span class="logo">◈</span> Roboflow Communicator</h1>
+    <p class="tagline">
+      Configure a deployed model, send image, video, or text data, and inspect what it detected.
+    </p>
+  </header>
+
+  <div class="layout">
+    <!-- ============================ CONFIG PANEL ========================= -->
+    <section class="card config">
+      <h2>1 · Model &amp; Credentials</h2>
+
+      <label class="field">
+        <span>Workspace</span>
+        <input type="text" [(ngModel)]="config.workspace" placeholder="my-workspace" />
+      </label>
+
+      <div class="row">
+        <label class="field">
+          <span>Project</span>
+          <input type="text" [(ngModel)]="config.project" placeholder="my-project" />
+        </label>
+        <label class="field version">
+          <span>Version</span>
+          <input type="text" [(ngModel)]="config.version" placeholder="1" />
+        </label>
+      </div>
+
+      <label class="field">
+        <span>API Key</span>
+        <input type="password" [(ngModel)]="config.apiKey" placeholder="rf_xxxxxxxx" autocomplete="off" />
+      </label>
+
+      <h2 class="spaced">2 · Data</h2>
+
+      <div class="segmented" role="tablist">
+        @for (kind of ['image', 'video', 'text']; track kind) {
+          <button
+            type="button"
+            role="tab"
+            [class.active]="config.inputKind === kind"
+            (click)="onInputKindChange($any(kind))">
+            {{ kind }}
+          </button>
+        }
+      </div>
+
+      @if (isVisual()) {
+        <label class="field">
+          <span>Model task</span>
+          <select [(ngModel)]="config.visionTask">
+            @for (task of visionTasks; track task.value) {
+              <option [value]="task.value">{{ task.label }}</option>
+            }
+          </select>
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span>Confidence %</span>
+            <input type="number" min="0" max="100" [(ngModel)]="config.confidence" />
+          </label>
+          <label class="field">
+            <span>Overlap %</span>
+            <input type="number" min="0" max="100" [(ngModel)]="config.overlap" />
+          </label>
+        </div>
+      }
+
+      @switch (config.inputKind) {
+        @case ('image') {
+          <label class="field">
+            <span>Image file</span>
+            <input type="file" accept="image/*" (change)="onImageSelected($event)" />
+          </label>
+        }
+        @case ('video') {
+          <label class="field">
+            <span>Video file</span>
+            <input type="file" accept="video/*" (change)="onVideoSelected($event)" />
+          </label>
+          <p class="hint">A single frame is captured and sent to the image endpoint.</p>
+        }
+        @case ('text') {
+          <label class="field">
+            <span>Text endpoint URL</span>
+            <input type="text" [(ngModel)]="config.textEndpoint" placeholder="https://…/infer" />
+          </label>
+          <label class="field">
+            <span>Text / document</span>
+            <textarea rows="6" [(ngModel)]="textInput" placeholder="Paste text to analyze…"></textarea>
+          </label>
+        }
+      }
+
+      <button class="run" [disabled]="!canRun()" (click)="run()">
+        @if (loading()) { Running… } @else { ▶ Run Inference }
+      </button>
+
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
+      }
+    </section>
+
+    <!-- ============================ RESULTS PANEL ======================== -->
+    <section class="card results">
+      <h2>3 · Results</h2>
+
+      @if (!result() && !loading()) {
+        <div class="placeholder">
+          <p>Results appear here once you run inference.</p>
+        </div>
+      }
+
+      @if (loading()) {
+        <div class="placeholder"><div class="spinner"></div><p>Contacting Roboflow…</p></div>
+      }
+
+      <!-- Visual results: image / captured frame with an overlay canvas -->
+      @if (isVisual() && imageUrl()) {
+        <div class="stage" [class.hidden]="!result()">
+          <img #baseImage [src]="imageUrl()" (load)="onBaseImageLoad()" alt="submitted visual" />
+          @if (maskUrl()) {
+            <img class="mask" [src]="maskUrl()" alt="segmentation mask" />
+          }
+          <canvas #overlay class="overlay"></canvas>
+        </div>
+      }
+
+      <!-- Classification scores -->
+      @if (classScores().length) {
+        <div class="scores">
+          <h3>Predicted classes</h3>
+          @for (score of classScores(); track score.label) {
+            <div class="score">
+              <div class="score-head">
+                <span class="chip" [style.background]="colorFor(score.label)"></span>
+                <span class="score-label">{{ score.label }}</span>
+                <span class="score-value">{{ pct(score.confidence) }}</span>
+              </div>
+              <div class="bar"><div class="bar-fill" [style.width.%]="score.confidence * 100"></div></div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- Text with highlighted entities -->
+      @if (config.inputKind === 'text' && textSegments().length) {
+        <div class="text-result">
+          <h3>Annotated text</h3>
+          <p class="flow">
+            @for (seg of textSegments(); track $index) {
+              @if (seg.entity) {
+                <mark
+                  [style.background]="colorFor(seg.entity.label, 0.35)"
+                  [style.border-color]="colorFor(seg.entity.label)"
+                  [title]="seg.entity.label + ' ' + pct(seg.entity.confidence)">
+                  {{ seg.text }}<span class="tag">{{ seg.entity.label }}</span>
+                </mark>
+              } @else {
+                <span>{{ seg.text }}</span>
+              }
+            }
+          </p>
+        </div>
+      }
+
+      <!-- Raw JSON -->
+      @if (result()) {
+        <div class="raw">
+          <button class="raw-toggle" (click)="toggleRaw()" [attr.aria-expanded]="rawExpanded()">
+            <span class="caret" [class.open]="rawExpanded()">▶</span>
+            Raw JSON response
+          </button>
+          @if (rawExpanded()) {
+            <pre>{{ result() | json }}</pre>
+          }
+        </div>
+      }
+    </section>
+  </div>
+
+  <!-- Hidden video element used to capture a frame for inference -->
+  @if (config.inputKind === 'video' && videoUrl()) {
+    <div class="card video-card">
+      <h3>Source video</h3>
+      <video #video [src]="videoUrl()" controls playsinline></video>
+      <p class="hint">Seek to the frame you want, then press “Run Inference”.</p>
+    </div>
+  }
+
+  <footer class="foot">
+    Not affiliated with Roboflow. Credentials stay in your browser and are sent only to the inference endpoint.
+  </footer>
+</div>
