@@ -1,4 +1,4 @@
-/* Global reset + base */
+/* Global reset + base — light theme matching CEAMLS / Morgan branding */
 * {
   box-sizing: border-box;
 }
@@ -6,9 +6,10 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: #0b1020;
+  background: #fdfcfa;
 }
 body {
-  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  color: #1c1c1e;
   -webkit-font-smoothing: antialiased;
 }

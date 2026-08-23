@@ -1,4 +1,4 @@
-# Roboflow Communicator
+# Rock Crack Detector
 
 An Angular single-page app for running inference against a deployed
 [Roboflow](https://roboflow.com) model and visualizing the result. Enter your
